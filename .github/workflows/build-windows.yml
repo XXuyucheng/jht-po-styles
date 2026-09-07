@@ -1,0 +1,43 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps & build
+        shell: pwsh
+        run: |
+          python -m venv .venv
+          .\.venv\Scripts\pip install -U pip
+          .\.venv\Scripts\pip install -r requirements.txt -r requirements-build.txt
+          .\.venv\Scripts\python -m PyInstaller packaging\jht_po_styles.spec --noconfirm --clean
+          Compress-Archive -Path dist\JhtPoStyles\* -DestinationPath dist\JhtPoStyles-windows-portable.zip
+
+      - name: Upload portable zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: JhtPoStyles-windows-portable
+          path: dist/JhtPoStyles-windows-portable.zip
+
+      - name: Release on tag
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/JhtPoStyles-windows-portable.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

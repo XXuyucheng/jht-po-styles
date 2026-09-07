@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.chrome-profile/
+chrome-profile/
+storage-state.json
+*.png
+.DS_Store
+build/
+dist/
+*.spec.bak
