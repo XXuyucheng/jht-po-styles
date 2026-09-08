@@ -2,7 +2,6 @@
 # Build on Windows only:
 #   pyinstaller packaging/jht_po_styles.spec
 
-import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all, collect_data_files, collect_submodules
@@ -20,38 +19,46 @@ hiddenimports = [
     "gradio",
 ]
 
-for pkg in ("gradio", "gradio_client", "safehttpx", "groovy", "playwright"):
+# collect_all is required for Gradio (templates/frontend) and Playwright (driver).
+# Also pull FastAPI stack as real packages — hiddenimports alone often still miss data files.
+for pkg in (
+    "gradio",
+    "gradio_client",
+    "safehttpx",
+    "groovy",
+    "playwright",
+    "fastapi",
+    "starlette",
+    "uvicorn",
+    "httpx",
+    "anyio",
+    "jinja2",
+    "pydantic",
+    "pydantic_core",
+    "python_multipart",
+    "multipart",
+    "aiofiles",
+    "ffmpy",
+    "orjson",
+    "huggingface_hub",
+    "markupsafe",
+    "yaml",
+    "greenlet",
+):
     try:
         d, b, h = collect_all(pkg)
         datas += d
         binaries += b
         hiddenimports += h
     except Exception:
-        hiddenimports += collect_submodules(pkg)
+        try:
+            hiddenimports += collect_submodules(pkg)
+        except Exception:
+            pass
         try:
             datas += collect_data_files(pkg)
         except Exception:
             pass
-
-# Extra Gradio/frontend deps that PyInstaller often misses
-for pkg in (
-    "fastapi",
-    "starlette",
-    "uvicorn",
-    "pydantic",
-    "anyio",
-    "httpx",
-    "jinja2",
-    "multipart",
-    "python_multipart",
-    "ffmpy",
-    "orjson",
-    "huggingface_hub",
-):
-    try:
-        hiddenimports += collect_submodules(pkg)
-    except Exception:
-        pass
 
 a = Analysis(
     [str(project_root / "app_main.py")],
@@ -80,8 +87,8 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
-    console=False,  # windowed; Gradio opens the browser
+    upx=False,  # UPX often breaks DLLs / trips antivirus on Windows
+    console=True,  # show Gradio URL + startup errors in a console window
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
@@ -98,7 +105,7 @@ coll = COLLECT(
     a.zipfiles,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     name="JhtPoStyles",
 )

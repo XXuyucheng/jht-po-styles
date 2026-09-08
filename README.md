@@ -8,6 +8,11 @@
 
 本机是 macOS 时**无法直接生成 Windows `.exe`**，请用下面任一方式：
 
+**重要：** 解压后放到纯英文路径再运行，例如 `C:\Tools\JhtPoStyles\`。  
+含中文/空格的目录（如 `临时文件中转\…portable 2`）容易启动失败。
+
+若仍报错：看控制台输出，或打开 `%LOCALAPPDATA%\jht-po-styles\crash.log`。
+
 ### A. GitHub Actions 自动打包
 
 1. 把本仓库推到 GitHub

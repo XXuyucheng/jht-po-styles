@@ -26,6 +26,7 @@ jobs:
           .\.venv\Scripts\pip install -U pip
           .\.venv\Scripts\pip install -r requirements.txt -r requirements-build.txt
           .\.venv\Scripts\python -m PyInstaller packaging\jht_po_styles.spec --noconfirm --clean
+          Copy-Item packaging\JhtPoStyles.bat dist\JhtPoStyles\JhtPoStyles.bat -Force
           Compress-Archive -Path dist\JhtPoStyles\* -DestinationPath dist\JhtPoStyles-windows-portable.zip
 
       - name: Upload portable zip

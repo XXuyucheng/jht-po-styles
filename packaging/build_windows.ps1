@@ -29,7 +29,8 @@ if (-not (Test-Path $Dist)) {
     throw "Build failed: $Dist not found"
 }
 
-# Portable zip
+Copy-Item (Join-Path $PSScriptRoot "JhtPoStyles.bat") (Join-Path $Dist "JhtPoStyles.bat") -Force
+
 $Zip = Join-Path $Root "dist\JhtPoStyles-windows-portable.zip"
 if (Test-Path $Zip) { Remove-Item $Zip }
 Compress-Archive -Path (Join-Path $Dist "*") -DestinationPath $Zip
@@ -38,7 +39,8 @@ Write-Host ""
 Write-Host "Done."
 Write-Host "  App folder: $Dist"
 Write-Host "  Portable zip: $Zip"
-Write-Host "Run: $Dist\JhtPoStyles.exe"
+Write-Host "Run: $Dist\JhtPoStyles.exe   (or JhtPoStyles.bat)"
+Write-Host "IMPORTANT: put the folder on an ASCII path, e.g. C:\Tools\JhtPoStyles\"
 Write-Host "First extract will download Chromium into %LOCALAPPDATA%\jht-po-styles\ms-playwright"
 Write-Host ""
 Write-Host "Optional installer: open packaging\installer.iss in Inno Setup and Compile."
