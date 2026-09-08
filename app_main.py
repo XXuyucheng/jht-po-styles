@@ -10,6 +10,45 @@ import traceback
 from pathlib import Path
 
 
+def _ensure_stdio() -> None:
+    """PyInstaller windowed builds set stdout/stderr to None.
+
+    uvicorn logging then crashes with:
+      AttributeError: 'NoneType' object has no attribute 'isatty'
+      Unable to configure formatter 'default'
+    """
+    log_path = None
+    try:
+        if sys.platform == "win32":
+            base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        elif sys.platform == "darwin":
+            base = Path.home() / "Library" / "Application Support"
+        else:
+            base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+        log_dir = base / "jht-po-styles"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / "app.log"
+    except Exception:
+        log_path = None
+
+    def _open_fallback():
+        if log_path is not None:
+            try:
+                return open(log_path, "a", encoding="utf-8", buffering=1)
+            except Exception:
+                pass
+        return open(os.devnull, "w", encoding="utf-8")
+
+    if sys.stdout is None:
+        sys.stdout = _open_fallback()
+    if sys.stderr is None:
+        sys.stderr = _open_fallback()
+
+
+# Must run before importing gradio/uvicorn (stdio may be None in frozen GUI apps).
+_ensure_stdio()
+
+
 def _free_port(preferred: int = 7860) -> int:
     for port in range(preferred, preferred + 20):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
