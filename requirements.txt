@@ -1,3 +1,7 @@
 playwright>=1.40.0
 # Gradio 5/6 pull a heavier stack; pin 4.x for more reliable Windows PyInstaller builds
 gradio>=4.44.0,<5
+# Gradio 4 still imports HfFolder; huggingface_hub 1.x removed it
+huggingface_hub>=0.19.3,<1.0
+# Gradio 4 + pydantic 2.11+ can break launch() on some builds
+pydantic>=2.0,<2.11
