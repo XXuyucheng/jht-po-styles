@@ -72,7 +72,7 @@ a = Analysis(
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=[str(project_root / "packaging" / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
@@ -80,6 +80,13 @@ a = Analysis(
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
+    # Gradio inspects its own .py files when serving the page.
+    # Without this, GET / returns Internal Server Error (missing blocks_events.py).
+    module_collection_mode={
+        "gradio": "py",
+        "gradio_client": "py",
+        "groovy": "py",
+    },
 )
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
