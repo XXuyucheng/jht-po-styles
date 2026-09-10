@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import inspect
 import os
 import socket
 import sys
@@ -106,11 +107,49 @@ def _warn_non_ascii_path() -> None:
         pass
 
 
+def _bypass_proxy_for_localhost() -> None:
+    """Windows system/HTTP proxies make Gradio's localhost self-check fail."""
+    extras = "127.0.0.1,localhost,::1"
+    for key in ("NO_PROXY", "no_proxy"):
+        existing = os.environ.get(key, "").strip()
+        os.environ[key] = f"{existing},{extras}" if existing else extras
+
+
+def _patch_gradio_localhost_check() -> None:
+    """Desktop EXE always serves 127.0.0.1; skip Gradio's optional self-HTTP probe."""
+    try:
+        import gradio.networking as networking
+
+        networking.url_ok = lambda _url: True  # type: ignore[method-assign]
+    except Exception:
+        pass
+
+
+def _launch_kwargs(port: int) -> dict:
+    from gradio.blocks import Blocks
+
+    params = inspect.signature(Blocks.launch).parameters
+    kwargs: dict = {
+        "server_name": "127.0.0.1",
+        "server_port": port,
+        "inbrowser": True,
+        "show_error": True,
+        "quiet": False,
+        "share": False,
+    }
+    if "ssr_mode" in params:
+        kwargs["ssr_mode"] = False
+    if "show_api" in params:
+        kwargs["show_api"] = False
+    return kwargs
+
+
 def main() -> None:
     # Gradio / analytics / SSR — keep packaging simple (no Node required)
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
     os.environ.setdefault("GRADIO_SSR_MODE", "False")
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    _bypass_proxy_for_localhost()
 
     _warn_non_ascii_path()
 
@@ -121,20 +160,11 @@ def main() -> None:
 
     from jht_po_ui import build
 
+    _patch_gradio_localhost_check()
+
     port = int(os.environ.get("JHT_PO_PORT", _free_port()))
     demo = build()
-    launch_kwargs = dict(
-        server_name="127.0.0.1",
-        server_port=port,
-        inbrowser=True,
-        show_error=True,
-        quiet=False,
-    )
-    try:
-        demo.launch(**launch_kwargs, ssr_mode=False)
-    except TypeError:
-        # Older Gradio without ssr_mode
-        demo.launch(**launch_kwargs)
+    demo.launch(**_launch_kwargs(port))
 
 
 if __name__ == "__main__":

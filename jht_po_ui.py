@@ -131,7 +131,7 @@ def build() -> gr.Blocks:
 
 def main() -> None:
     demo = build()
-    demo.launch(inbrowser=True, show_error=True)
+    demo.launch(inbrowser=True, show_error=True, share=False, server_name="127.0.0.1")
 
 
 if __name__ == "__main__":

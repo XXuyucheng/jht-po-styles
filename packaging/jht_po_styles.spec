@@ -44,6 +44,12 @@ for pkg in (
     "markupsafe",
     "yaml",
     "greenlet",
+    "httpcore",
+    "h11",
+    "sniffio",
+    "idna",
+    "certifi",
+    "websockets",
 ):
     try:
         d, b, h = collect_all(pkg)
