@@ -73,6 +73,46 @@ def _log_dir() -> Path:
     return path
 
 
+def _dbg(hypothesis_id: str, message: str, data: dict | None = None) -> None:
+    # #region agent log
+    import json
+    import time
+
+    payload = {
+        "sessionId": "b5185c",
+        "runId": "pre-fix",
+        "hypothesisId": hypothesis_id,
+        "location": "app_main.py",
+        "message": message,
+        "data": data or {},
+        "timestamp": int(time.time() * 1000),
+    }
+    line = json.dumps(payload, ensure_ascii=False) + "\n"
+    targets = [
+        Path("/Users/xuyucheng/Projects/jht-po-styles/.cursor/debug-b5185c.log"),
+        _log_dir() / "debug-b5185c.log",
+        Path.home() / "Desktop" / "debug-b5185c.log",
+        Path.home() / "桌面" / "debug-b5185c.log",
+    ]
+    try:
+        exe = Path(sys.executable).resolve()
+        targets.append(exe.parent / "debug-b5185c.log")
+    except Exception:
+        pass
+    for path in targets:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write(line)
+        except Exception:
+            pass
+    try:
+        print(f"[dbg {hypothesis_id}] {message} {data}", file=sys.stderr)
+    except Exception:
+        pass
+    # #endregion
+
+
 def _write_crash_log(text: str) -> Path:
     log = _log_dir() / "crash.log"
     log.write_text(text, encoding="utf-8")
@@ -144,6 +184,126 @@ def _launch_kwargs(port: int) -> dict:
     return kwargs
 
 
+def _probe_packaged_assets() -> None:
+    try:
+        import gradio
+        import gradio_client
+    except Exception as exc:
+        _dbg("A", "import gradio failed", {"type": type(exc).__name__, "msg": str(exc)})
+        return
+    gdir = Path(gradio.__file__).resolve().parent
+    cdir = Path(gradio_client.__file__).resolve().parent
+    _dbg(
+        "A",
+        "gradio source files",
+        {
+            "frozen": bool(getattr(sys, "frozen", False)),
+            "gradio_file": str(gradio.__file__),
+            "blocks_events_py": (gdir / "blocks_events.py").exists(),
+            "blocks_events_pyc": (gdir / "__pycache__" / "blocks_events.cpython-312.pyc").exists()
+            or (gdir / "blocks_events.pyc").exists(),
+            "component_meta_py": (gdir / "component_meta.py").exists(),
+        },
+    )
+    index = gdir / "templates" / "frontend" / "index.html"
+    resources_templates = None
+    resources_index = None
+    static_lib = None
+    try:
+        from importlib.resources import files as _files
+
+        resources_templates = str(_files("gradio").joinpath("templates"))
+        resources_index = _files("gradio").joinpath("templates", "frontend", "index.html")
+        try:
+            resources_index_exists = resources_index.is_file()
+        except Exception:
+            resources_index_exists = False
+    except Exception as exc:
+        resources_index_exists = f"err:{type(exc).__name__}:{exc}"
+    try:
+        import gradio.routes as _routes
+
+        static_lib = getattr(_routes, "STATIC_TEMPLATE_LIB", None)
+    except Exception:
+        static_lib = None
+    _dbg(
+        "B",
+        "gradio frontend templates",
+        {
+            "templates_dir": (gdir / "templates").exists(),
+            "frontend_dir": (gdir / "templates" / "frontend").exists(),
+            "index_html": index.exists(),
+            "importlib_templates": resources_templates,
+            "importlib_index_exists": str(resources_index_exists),
+            "STATIC_TEMPLATE_LIB": str(static_lib),
+        },
+    )
+    _dbg(
+        "C",
+        "gradio_client data files",
+        {
+            "types_json": (cdir / "types.json").exists(),
+            "package_json": (cdir / "package.json").exists(),
+        },
+    )
+
+
+def _install_asgi_error_logger() -> None:
+    try:
+        import gradio.routes as routes
+    except Exception as exc:
+        _dbg("D", "cannot import gradio.routes", {"type": type(exc).__name__, "msg": str(exc)})
+        return
+    orig = routes.App.create_app
+
+    @classmethod
+    def _create_app_logged(cls, *args, **kwargs):
+        app = orig(*args, **kwargs)
+        try:
+            from starlette.middleware.base import BaseHTTPMiddleware
+            from starlette.requests import Request
+
+            class _LogAsgiErrors(BaseHTTPMiddleware):
+                async def dispatch(self, request: Request, call_next):
+                    try:
+                        return await call_next(request)
+                    except Exception as err:
+                        tb = traceback.format_exc()
+                        _dbg(
+                            "D",
+                            "asgi exception",
+                            {
+                                "path": request.url.path,
+                                "type": type(err).__name__,
+                                "msg": str(err)[:800],
+                                "tb": tb[-4000:],
+                            },
+                        )
+                        _dbg(
+                            "E",
+                            "asgi exception class",
+                            {"type": type(err).__name__, "module": type(err).__module__},
+                        )
+                        print("DEBUG FULL TRACEBACK\n" + tb, file=sys.stderr)
+                        from starlette.responses import PlainTextResponse
+
+                        return PlainTextResponse(
+                            "JhtPoStyles debug traceback\n\n" + tb,
+                            status_code=500,
+                        )
+
+            app.add_middleware(_LogAsgiErrors)
+        except Exception as wrap_exc:
+            _dbg(
+                "D",
+                "failed to wrap asgi",
+                {"type": type(wrap_exc).__name__, "msg": str(wrap_exc)},
+            )
+        return app
+
+    routes.App.create_app = _create_app_logged
+
+
 def main() -> None:
     # Gradio / analytics / SSR — keep packaging simple (no Node required)
     os.environ.setdefault("GRADIO_ANALYTICS_ENABLED", "False")
@@ -161,6 +321,8 @@ def main() -> None:
     from jht_po_ui import build
 
     _patch_gradio_localhost_check()
+    _probe_packaged_assets()
+    _install_asgi_error_logger()
 
     port = int(os.environ.get("JHT_PO_PORT", _free_port()))
     demo = build()
