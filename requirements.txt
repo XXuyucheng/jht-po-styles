@@ -5,3 +5,6 @@ gradio>=4.44.0,<5
 huggingface_hub>=0.19.3,<1.0
 # Gradio 4 + pydantic 2.11+ can break launch() on some builds
 pydantic>=2.0,<2.11
+# Gradio 4.44 uses TemplateResponse(name, context); Starlette 1.0 / FastAPI 0.116+ broke that
+fastapi<0.116
+starlette<1.0
