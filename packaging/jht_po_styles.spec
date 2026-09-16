@@ -66,6 +66,16 @@ for pkg in (
         except Exception:
             pass
 
+# Explicit Gradio frontend (Jinja looks up frontend/index.html at GET /).
+try:
+    import gradio as _gradio_pkg
+
+    _gradio_templates = Path(_gradio_pkg.__file__).resolve().parent / "templates"
+    if _gradio_templates.exists():
+        datas.append((str(_gradio_templates), "gradio/templates"))
+except Exception:
+    pass
+
 a = Analysis(
     [str(project_root / "app_main.py")],
     pathex=[str(project_root)],

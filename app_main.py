@@ -73,14 +73,14 @@ def _log_dir() -> Path:
     return path
 
 
-def _dbg(hypothesis_id: str, message: str, data: dict | None = None) -> None:
+def _dbg(hypothesis_id: str, message: str, data: dict | None = None, run_id: str = "pre-fix") -> None:
     # #region agent log
     import json
     import time
 
     payload = {
         "sessionId": "b5185c",
-        "runId": "pre-fix",
+        "runId": run_id,
         "hypothesisId": hypothesis_id,
         "location": "app_main.py",
         "message": message,
@@ -163,6 +163,58 @@ def _patch_gradio_localhost_check() -> None:
         networking.url_ok = lambda _url: True  # type: ignore[method-assign]
     except Exception:
         pass
+
+
+def _patch_gradio_template_paths() -> None:
+    """PyInstaller + importlib.resources makes Jinja look in a non-filesystem path.
+
+    Runtime evidence: jinja2.environment.get_template during GET / (Windows EXE 500).
+    """
+    try:
+        import gradio
+        import gradio.routes as routes
+        from starlette.templating import Jinja2Templates
+    except Exception as exc:
+        _dbg("B", "template patch import failed", {"type": type(exc).__name__, "msg": str(exc)})
+        return
+
+    templates_dir = Path(gradio.__file__).resolve().parent / "templates"
+    index = templates_dir / "frontend" / "index.html"
+    old = getattr(routes, "STATIC_TEMPLATE_LIB", None)
+    _dbg(
+        "B",
+        "template patch before",
+        {
+            "old_STATIC_TEMPLATE_LIB": str(old),
+            "fs_templates": str(templates_dir),
+            "index_html": index.exists(),
+        },
+        run_id="post-fix",
+    )
+    if not index.exists():
+        _dbg(
+            "B",
+            "index.html missing beside gradio package",
+            {"templates_dir": str(templates_dir)},
+            run_id="post-fix",
+        )
+        return
+
+    routes.STATIC_TEMPLATE_LIB = str(templates_dir)
+    if hasattr(routes, "STATIC_PATH_LIB"):
+        routes.STATIC_PATH_LIB = str(templates_dir / "frontend" / "static")
+    if hasattr(routes, "BUILD_PATH_LIB"):
+        routes.BUILD_PATH_LIB = str(templates_dir / "frontend" / "assets")
+    routes.templates = Jinja2Templates(directory=str(templates_dir))
+    _dbg(
+        "B",
+        "template patch after",
+        {
+            "STATIC_TEMPLATE_LIB": str(routes.STATIC_TEMPLATE_LIB),
+            "index_html": True,
+        },
+        run_id="post-fix",
+    )
 
 
 def _launch_kwargs(port: int) -> dict:
@@ -322,6 +374,7 @@ def main() -> None:
 
     _patch_gradio_localhost_check()
     _probe_packaged_assets()
+    _patch_gradio_template_paths()
     _install_asgi_error_logger()
 
     port = int(os.environ.get("JHT_PO_PORT", _free_port()))
